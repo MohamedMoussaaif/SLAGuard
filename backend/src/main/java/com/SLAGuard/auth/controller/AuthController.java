@@ -26,7 +26,7 @@ public class AuthController {
         return authService.login(userData);
     }
 
-    @GetMapping("/me")
+    @GetMapping("/authenticated-user")
     public ResponseEntity<AuthResponse> getAuthenticatedUser() {
         return authService.authenticatedUser();
     }
