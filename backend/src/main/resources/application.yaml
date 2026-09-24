@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: SLAGuard
+
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/sla-guard}
+    username: ${SPRING_DATASOURCE_USERNAME:medmsf}
+    password: ${SPRING_DATASOURCE_PASSWORD:medmsf7810}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    # Prevents lazy-loading DB queries from leaking into the view layer —
+    # good default for a RE
+
+
+jwt:
+  secret: ${JWT_SECRET:75PsrxxBG7XwgY0Rg6M6LVUyyg7jIYw++YqlYItp3h0EFj1kbazUyi/PY5eXk/pR}
+  expiration: 86400000   # 24 hours, in milliseconds
+
+server:
+  port: 8080
