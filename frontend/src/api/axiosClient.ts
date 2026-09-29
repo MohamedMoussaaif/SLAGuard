@@ -2,7 +2,7 @@ import axios from 'axios';
 import { storage } from '../utils/storage';
 
 const axiosClient = axios.create({
-  baseURL: 'http://localhost:8080/api', // Adjust backend URL/port if needed
+  baseURL: 'http://localhost:9090/api', // Adjust backend URL/port if needed
   headers: {
     'Content-Type': 'application/json',
   },

@@ -1,26 +1,41 @@
-export type Role = 'ADMIN' | 'AGENT' | 'CLIENT';
+import type { Role } from './auth';
 
 export type TicketPriority = 'LOW' | 'MEDIUM' | 'HIGH' | 'URGENT';
 
-export type TicketStatus = 
-  | 'OPEN' 
-  | 'ASSIGNED' 
-  | 'IN_PROGRESS' 
-  | 'WAITING_ON_CLIENT' 
-  | 'RESOLVED' 
-  | 'CLOSED' 
-  | 'ESCALATED';
+export type TicketStatus =
+  | 'OPEN'
+  | 'IN_PROGRESS'
+  | 'WAITING_ON_CLIENT'
+  | 'RESOLVED'
+  | 'CLOSED'
+  | 'ESCALATED'
+  | 'CANCELLED';
+
+export interface UserSummary {
+  id: number;
+  fullName: string;
+  email: string;
+  role: Role;
+}
 
 export interface Ticket {
   id: number;
   title: string;
   description: string;
+  category: string;
   priority: TicketPriority;
   status: TicketStatus;
-  createdBy: { id: number; name: string; email: string };
-  assignedTo?: { id: number; name: string; email: string } | null;
   slaDeadline: string; // ISO date string
   isSlaBreached: boolean;
-  createdAt: string;
   resolvedAt?: string | null;
+  createdBy: UserSummary;
+  assignedTo?: UserSummary | null;
+  createdAt: string;
+}
+
+export interface CreateTicketRequest {
+  title: string;
+  description: string;
+  priority: TicketPriority;
+  category: string;
 }

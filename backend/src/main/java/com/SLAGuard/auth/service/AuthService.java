@@ -12,6 +12,7 @@ import com.SLAGuard.auth.exception.UserNotFoundException;
 import com.SLAGuard.auth.mapper.AuthMapper;
 import com.SLAGuard.auth.repository.UserRepository;
 import com.SLAGuard.auth.service.securityService.JWTService;
+import com.SLAGuard.enums.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,8 +22,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.file.AccessDeniedException;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -35,7 +39,7 @@ public class AuthService {
 
     private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
 
-
+    @Transactional
     public ResponseEntity<AuthResponse> registerUser(RegisterDto userData) {
         User user = authMapper.registerDtoToUser(userData);
         if(userRepository.findByUsername(userData.getUsername()).isPresent()){
@@ -57,6 +61,7 @@ public class AuthService {
 
     }
 
+    @Transactional
     public ResponseEntity<AuthResponse> login(LoginDTO user) {
 
         try {
@@ -75,8 +80,8 @@ public class AuthService {
         return userRepository.findByUsername(username).orElse(null);
     }
 
-    public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userRepository.findAll();
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+        List<UserResponse> users = authMapper.toListUserResponse(userRepository.findAll());
         return ResponseEntity.status(HttpStatus.OK).body(users);
     }
 
@@ -102,5 +107,16 @@ public class AuthService {
         UserResponse userResponse = authMapper.userToUserResponse(getUser(user.getUsername()));
         AuthResponse apiResponse = new AuthResponse(null, userResponse);
         return ResponseEntity.ok(apiResponse);
+    }
+
+    @Transactional
+    public UserResponse updateUserRole(long userId, Role newRole) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found with Id: " + userId));
+
+        user.setRole(newRole);
+        User updatedUser = userRepository.save(user);
+
+        return authMapper.userToUserResponse(updatedUser);
     }
 }

@@ -6,6 +6,8 @@ import com.SLAGuard.auth.dto.UserResponse;
 import com.SLAGuard.auth.entity.User;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 public class AuthMapper {
 
@@ -28,5 +30,11 @@ public class AuthMapper {
         user.setEmail(userData.getEmail());
         user.setPassword(userData.getPassword());
         return user;
+    }
+
+    public List<UserResponse> toListUserResponse(List<User> userList) {
+        return userList.stream()
+                .map(this::userToUserResponse)
+                .toList();
     }
 }

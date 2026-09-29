@@ -26,3 +26,9 @@ jwt:
 
 server:
   port: 9090
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    com.SLAGuard: DEBUG
