@@ -1,5 +1,6 @@
 package com.SLAGuard.auth.entity;
 
+import com.SLAGuard.enums.Role;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -35,7 +36,9 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
-    private String role = "CLIENT";
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private Role role = Role.ROLE_CLIENT;
 
 
     @Column(updatable = false)

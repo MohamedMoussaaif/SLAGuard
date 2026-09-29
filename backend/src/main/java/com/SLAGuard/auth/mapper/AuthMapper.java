@@ -16,7 +16,7 @@ public class AuthMapper {
         userResponse.setLastName(user.getLastName());
         userResponse.setUsername(user.getUsername());
         userResponse.setEmail(user.getEmail());
-        userResponse.setRole(user.getRole());
+        userResponse.setRole(user.getRole().toString());
         return userResponse;
     }
 
