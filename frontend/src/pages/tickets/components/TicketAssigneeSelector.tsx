@@ -107,11 +107,29 @@ export const TicketAssigneeSelector: React.FC<Props> = ({
                             <option value="" disabled>
                                 -- Choose an Agent --
                             </option>
-                            {agents.map((agent) => (
-                                <option key={agent.id} value={agent.id}>
-                                    {agent.firstName} {agent.lastName} ({agent.role.replace('ROLE_', '')})
-                                </option>
-                            ))}
+
+                            {
+                                currentUser?.role?.includes('AGENT') ? (
+                                    <option value={currentUser.id}>
+                                        {currentUser.firstName} {currentUser.lastName} ({currentUser.role.replace('ROLE_', '')}) {'(Me)'}
+                                    </option>
+                                ) : (
+
+                                    agents.map((agent) => (
+                                        <option key={agent.id} value={agent.id}>
+                                            {agent.firstName} {agent.lastName} ({agent.role.replace('ROLE_', '')})
+                                        </option>
+                                    )
+
+                                    )
+
+                                )
+
+                            }
+
+
+
+
                         </select>
                         <UserCheck className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
                     </div>

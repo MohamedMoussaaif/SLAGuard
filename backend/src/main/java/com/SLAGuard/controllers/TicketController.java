@@ -29,6 +29,12 @@ public class TicketController {
         return ticketService.getAllTickets();
     }
 
+    @GetMapping("/escalated")
+    @PreAuthorize("hasAnyRole('AGENT', 'ADMIN')")
+    public List<TicketResponse> getAllEscalatedTickets() {
+        return ticketService.getAllEscalatedTickets();
+    }
+
     @GetMapping("/{ticketId}")
     @PreAuthorize("hasAnyRole('CLIENT', 'AGENT', 'ADMIN')")
     public TicketResponse getTicketById(@PathVariable Long ticketId) {

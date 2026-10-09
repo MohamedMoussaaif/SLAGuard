@@ -44,6 +44,20 @@ public class TicketService {
         return ticketMapper.toListTicketResponse(tickets);
     }
 
+    public List<TicketResponse> getAllEscalatedTickets() {
+
+        List<Ticket> escalatedTickets;
+        User currentUser = authService.getUser(Objects.requireNonNull(authService.authenticatedUser().getBody()).getUser().getUsername());
+        if (currentUser.getRole() == Role.ROLE_CLIENT) {
+            throw new AccessDeniedException("You are not allowed to view this tickets");
+        } else {
+            escalatedTickets = ticketRepository.findByStatus(TicketStatus.ESCALATED);
+
+        }
+        return ticketMapper.toListTicketResponse(escalatedTickets);
+
+    }
+
 
     public TicketResponse getTicketById(Long ticketId) {
         Ticket ticket = ticketRepository.findById(ticketId)
@@ -112,6 +126,10 @@ public class TicketService {
         User agent = userRepository.findById(agentId)
                 .orElseThrow(() -> new UserNotFoundException("Agent not found with id: " + agentId));
 
+        if (currentUser.getRole() == Role.ROLE_AGENT && !Objects.equals(agent.getId(), currentUser.getId())) {
+            throw new IllegalArgumentException("Agents cannot assign a ticket to different users");
+        }
+
         if (agent.getRole() == Role.ROLE_CLIENT) {
             throw new IllegalArgumentException("Cannot assign a ticket to a CLIENT");
         }
@@ -154,6 +172,4 @@ public class TicketService {
                 .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + ticketId));
         ticketRepository.delete(ticket);
     }
-
-
 }

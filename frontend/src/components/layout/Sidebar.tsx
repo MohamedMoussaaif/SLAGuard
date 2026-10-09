@@ -62,41 +62,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onOpenCreateTicket }) => {
           <Ticket className="h-4 w-4" />
           All Tickets
         </NavLink>
-
-        {/* Administration Section */}
-        {isAdminOrAgent && (
-          <div className="pt-4 mt-4 border-t border-slate-100">
-            <span className="px-3 text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              Administration
-            </span>
-            <div className="mt-2 space-y-1">
-              <NavLink
-                to="/tickets?status=ESCALATED"
-                className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-rose-700 hover:bg-rose-50 transition"
-              >
-                <ShieldAlert className="h-4 w-4 text-rose-600" />
-                Escalated SLA
-              </NavLink>
-
-              {/* User Management (Admins Only) */}
-              {isAdmin && (
-                <NavLink
-                  to="/users"
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition ${
-                      isActive
-                        ? 'bg-brand-light text-brand font-semibold'
-                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                    }`
-                  }
-                >
-                  <Users className="h-4 w-4 text-slate-500" />
-                  User Roles
-                </NavLink>
-              )}
-            </div>
-          </div>
-        )}
       </nav>
     </aside>
   );

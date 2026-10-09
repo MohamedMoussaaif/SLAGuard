@@ -1,6 +1,7 @@
 package com.SLAGuard.dto.comments;
 
 import com.SLAGuard.dto.tickets.UserSummaryResponse;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -17,6 +18,7 @@ public class CommentResponse {
     private Long ticketId;
     private UserSummaryResponse author;
     private String content;
+    @JsonProperty("isInternal")
     private boolean isInternal;
     private LocalDateTime createdAt;
 }

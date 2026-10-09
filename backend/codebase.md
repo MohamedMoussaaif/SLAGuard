@@ -162,12 +162,7 @@ build/
     <option name="autoReloadType" value="SELECTIVE" />
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="d6e5c9ca-4fbf-433f-9c02-408235b1999e" name="Changes" comment="">
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/SLAGuard/auth/entity/User.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/SLAGuard/auth/entity/User.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/SLAGuard/auth/mapper/AuthMapper.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/SLAGuard/auth/mapper/AuthMapper.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/java/com/SLAGuard/entities/Ticket.java" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/java/com/SLAGuard/entities/Ticket.java" afterDir="false" />
-      <change beforePath="$PROJECT_DIR$/src/main/resources/application.yaml" beforeDir="false" afterPath="$PROJECT_DIR$/src/main/resources/application.yaml" afterDir="false" />
-    </list>
+    <list default="true" id="d6e5c9ca-4fbf-433f-9c02-408235b1999e" name="Changes" comment="" />
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -182,9 +177,9 @@ build/
   <component name="FileTemplateManagerImpl">
     <option name="RECENT_TEMPLATES">
       <list>
-        <option value="Interface" />
         <option value="Enum" />
         <option value="Exception" />
+        <option value="Interface" />
         <option value="Class" />
       </list>
     </option>
@@ -266,7 +261,8 @@ build/
       <workItem from="1790262465897" duration="1075000" />
       <workItem from="1790264408840" duration="5400000" />
       <workItem from="1790346464948" duration="8812000" />
-      <workItem from="1790613403062" duration="6827000" />
+      <workItem from="1790613403062" duration="17084000" />
+      <workItem from="1790686955395" duration="100000" />
     </task>
     <servers />
   </component>
@@ -1071,13 +1067,16 @@ public class SecurityConfig {
 package com.SLAGuard.auth.controller;
 
 
-import com.SLAGuard.auth.dto.AuthResponse;
-import com.SLAGuard.auth.dto.LoginDTO;
-import com.SLAGuard.auth.dto.RegisterDto;
+import com.SLAGuard.auth.dto.*;
 import com.SLAGuard.auth.service.AuthService;
+import com.SLAGuard.enums.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.nio.file.AccessDeniedException;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -1101,9 +1100,24 @@ public class AuthController {
         return authService.authenticatedUser();
     }
 
+    @GetMapping("/users")
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+        return authService.getAllUsers();
+    }
+
     @DeleteMapping("/users/{userId}")
     public ResponseEntity<AuthResponse> deleteUser(@PathVariable long userId) {
         return authService.removeUser(userId);
+    }
+
+    @PutMapping("/users/{userId}/role")
+    @PreAuthorize("hasRole('ADMIN')") // Spring Security handles RBAC cleanly
+    public ResponseEntity<UserResponse> updateRole(
+            @PathVariable long userId,
+            @RequestBody UpdateRoleRequest request) {
+
+        UserResponse response = authService.updateUserRole(userId, request.getRole());
+        return ResponseEntity.ok(response);
     }
 
 }
@@ -1171,6 +1185,20 @@ public class RegisterDto {
 
 ```
 
+# src\main\java\com\SLAGuard\auth\dto\UpdateRoleRequest.java
+
+```java
+package com.SLAGuard.auth.dto;
+
+import com.SLAGuard.enums.Role;
+import lombok.Data;
+
+@Data
+public class UpdateRoleRequest {
+    private Role role; // Automatically parsed by Jackson into the Enum
+}
+```
+
 # src\main\java\com\SLAGuard\auth\dto\UserResponse.java
 
 ```java
@@ -1201,10 +1229,12 @@ package com.SLAGuard.auth.entity.sec;
 
 import com.SLAGuard.auth.entity.User;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 
 public class CustomUserDetails implements UserDetails {
@@ -1216,8 +1246,7 @@ public class CustomUserDetails implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        Set<GrantedAuthority> authorities = new HashSet<>();
-        return authorities;
+        return List.of(new SimpleGrantedAuthority(user.getRole().name()));
     }
 
     @Override
@@ -1402,6 +1431,8 @@ import com.SLAGuard.auth.dto.UserResponse;
 import com.SLAGuard.auth.entity.User;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
+
 @Component
 public class AuthMapper {
 
@@ -1425,6 +1456,12 @@ public class AuthMapper {
         user.setPassword(userData.getPassword());
         return user;
     }
+
+    public List<UserResponse> toListUserResponse(List<User> userList) {
+        return userList.stream()
+                .map(this::userToUserResponse)
+                .toList();
+    }
 }
 
 ```
@@ -1435,6 +1472,7 @@ public class AuthMapper {
 package com.SLAGuard.auth.repository;
 
 import com.SLAGuard.auth.entity.User;
+import com.SLAGuard.enums.Role;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
@@ -1443,6 +1481,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     Optional<User> findByUsername(String username);
 
     Optional<User> findByEmail(String email);
+
+    Optional<User> findFirstByRole(Role role);
 }
 
 ```
@@ -1464,6 +1504,7 @@ import com.SLAGuard.auth.exception.UserNotFoundException;
 import com.SLAGuard.auth.mapper.AuthMapper;
 import com.SLAGuard.auth.repository.UserRepository;
 import com.SLAGuard.auth.service.securityService.JWTService;
+import com.SLAGuard.enums.Role;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -1473,8 +1514,11 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.nio.file.AccessDeniedException;
 import java.util.List;
+import java.util.Objects;
 
 @Service
 @RequiredArgsConstructor
@@ -1487,7 +1531,7 @@ public class AuthService {
 
     private BCryptPasswordEncoder encoder = new BCryptPasswordEncoder(12);
 
-
+    @Transactional
     public ResponseEntity<AuthResponse> registerUser(RegisterDto userData) {
         User user = authMapper.registerDtoToUser(userData);
         if(userRepository.findByUsername(userData.getUsername()).isPresent()){
@@ -1509,6 +1553,7 @@ public class AuthService {
 
     }
 
+    @Transactional
     public ResponseEntity<AuthResponse> login(LoginDTO user) {
 
         try {
@@ -1527,8 +1572,8 @@ public class AuthService {
         return userRepository.findByUsername(username).orElse(null);
     }
 
-    public ResponseEntity<List<User>> getAllUsers() {
-        List<User> users = userRepository.findAll();
+    public ResponseEntity<List<UserResponse>> getAllUsers() {
+        List<UserResponse> users = authMapper.toListUserResponse(userRepository.findAll());
         return ResponseEntity.status(HttpStatus.OK).body(users);
     }
 
@@ -1554,6 +1599,17 @@ public class AuthService {
         UserResponse userResponse = authMapper.userToUserResponse(getUser(user.getUsername()));
         AuthResponse apiResponse = new AuthResponse(null, userResponse);
         return ResponseEntity.ok(apiResponse);
+    }
+
+    @Transactional
+    public UserResponse updateUserRole(long userId, Role newRole) {
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new UserNotFoundException("User not found with Id: " + userId));
+
+        user.setRole(newRole);
+        User updatedUser = userRepository.save(user);
+
+        return authMapper.userToUserResponse(updatedUser);
     }
 }
 
@@ -1672,6 +1728,72 @@ public class JWTService {
 
 ```
 
+# src\main\java\com\SLAGuard\controllers\CommentController.java
+
+```java
+package com.SLAGuard.controllers;
+
+import com.SLAGuard.auth.entity.sec.CustomUserDetails;
+import com.SLAGuard.dto.comments.CommentRequest;
+import com.SLAGuard.dto.comments.CommentResponse;
+import com.SLAGuard.services.CommentService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/tickets/{ticketId}/comments")
+@RequiredArgsConstructor
+public class CommentController {
+
+    private final CommentService commentService;
+
+    @GetMapping
+    @PreAuthorize("hasAnyRole('CLIENT', 'AGENT', 'ADMIN')")
+    public List<CommentResponse> getComments(@PathVariable Long ticketId) {
+        return commentService.getCommentsByTicketId(ticketId);
+    }
+
+    @PostMapping
+    @PreAuthorize("hasAnyRole('CLIENT', 'AGENT', 'ADMIN')")
+    public CommentResponse addComment(@PathVariable Long ticketId, @RequestBody CommentRequest commentRequest) {
+        return commentService.addComment(ticketId, commentRequest);
+    }
+}
+```
+
+# src\main\java\com\SLAGuard\controllers\DashboardController.java
+
+```java
+package com.SLAGuard.controllers;
+
+import com.SLAGuard.dto.dashboard.DashboardStatsResponse;
+import com.SLAGuard.services.DashboardService;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/dashboard")
+@RequiredArgsConstructor
+public class DashboardController {
+
+    private final DashboardService dashboardService;
+
+    // Only Agents and Admins have access to the business metrics dashboard
+    @GetMapping("/stats")
+    @PreAuthorize("hasAnyRole('AGENT', 'ADMIN')")
+    public DashboardStatsResponse getStats() {
+        return dashboardService.getDashboardStats();
+    }
+}
+```
+
 # src\main\java\com\SLAGuard\controllers\GlobalExceptionHandler.java
 
 ```java
@@ -1706,12 +1828,16 @@ public class GlobalExceptionHandler {
 ```java
 package com.SLAGuard.controllers;
 
+import com.SLAGuard.dto.audit.AuditLogResponse;
+import com.SLAGuard.dto.tickets.TicketAssignRequest;
 import com.SLAGuard.dto.tickets.TicketRequest;
 import com.SLAGuard.dto.tickets.TicketResponse;
 import com.SLAGuard.dto.tickets.TicketStausUpdateDto;
 import com.SLAGuard.enums.TicketStatus;
+import com.SLAGuard.services.AuditLogService;
 import com.SLAGuard.services.TicketService;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -1723,37 +1849,175 @@ import java.util.Set;
 public class TicketController {
 
     private final TicketService ticketService;
+    private final AuditLogService auditLogService;
 
-    @GetMapping("/client/{clientId}")
-    public List<TicketResponse> getAllTicketsByClient(@PathVariable Long clientId) {
-        return ticketService.getAllTicketsByCustomerId(clientId);
+    @GetMapping
+    @PreAuthorize("hasAnyRole('CLIENT', 'AGENT', 'ADMIN')")
+    public List<TicketResponse> getAllTickets() {
+        return ticketService.getAllTickets();
     }
 
     @GetMapping("/{ticketId}")
+    @PreAuthorize("hasAnyRole('CLIENT', 'AGENT', 'ADMIN')")
     public TicketResponse getTicketById(@PathVariable Long ticketId) {
         return ticketService.getTicketById(ticketId);
     }
 
-    @GetMapping("/{ticketId}/next-allowed-statuses")
-    public Set<TicketStatus> getAllTicketsByNextAllowedStatus(@PathVariable Long ticketId) {
-        return ticketService.getAllowedNextStatuses(ticketId);
-    }
-
     @PostMapping
+    @PreAuthorize("hasAnyRole('CLIENT', 'AGENT', 'ADMIN')")
     public TicketResponse createTicket(@RequestBody TicketRequest ticketRequest) {
         return ticketService.createTicket(ticketRequest);
     }
 
-    @PutMapping("/{ticketId}")
-    public TicketResponse updateTicket(@PathVariable Long ticketId, @RequestBody TicketStausUpdateDto ticketStatus) {
-        return ticketService.updateTicketStatus(ticketId, TicketStatus.valueOf(ticketStatus.getTicketStatus()));
+    @PutMapping("/{ticketId}/status")
+    @PreAuthorize("hasAnyRole('AGENT', 'ADMIN')")
+    public TicketResponse updateTicketStatus(@PathVariable Long ticketId,
+                                             @RequestBody TicketStausUpdateDto statusDto) {
+        return ticketService.updateTicketStatus(ticketId, TicketStatus.valueOf(statusDto.getTicketStatus()));
+    }
+
+    @PutMapping("/{ticketId}/assign")
+    @PreAuthorize("hasAnyRole('AGENT', 'ADMIN')")
+    public TicketResponse assignTicket(@PathVariable Long ticketId,
+                                       @RequestBody TicketAssignRequest assignRequest) {
+        return ticketService.assignTicket(ticketId, assignRequest.getAgentId());
+    }
+
+    @GetMapping("/{ticketId}/next-allowed-statuses")
+    @PreAuthorize("hasAnyRole('CLIENT', 'AGENT', 'ADMIN')")
+    public Set<TicketStatus> getAllowedNextStatuses(@PathVariable Long ticketId) {
+        return ticketService.getAllowedNextStatuses(ticketId);
+    }
+
+
+    @GetMapping("/{ticketId}/audit-logs")
+    @PreAuthorize("hasAnyRole('CLIENT', 'AGENT', 'ADMIN')")
+    public List<AuditLogResponse> getTicketAuditLogs(@PathVariable Long ticketId) {
+        return auditLogService.getLogsForTicket(ticketId);
     }
 
     @DeleteMapping("/{ticketId}")
+    @PreAuthorize("hasRole('ADMIN')")
     public void deleteTicketById(@PathVariable Long ticketId) {
         ticketService.deleteTicket(ticketId);
     }
 
+}
+
+```
+
+# src\main\java\com\SLAGuard\dto\audit\AuditLogResponse.java
+
+```java
+package com.SLAGuard.dto.audit;
+
+import com.SLAGuard.dto.tickets.UserSummaryResponse;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class AuditLogResponse {
+    private Long id;
+    private Long ticketId;
+    private UserSummaryResponse performedBy;
+    private String action;
+    private String oldValue;
+    private String newValue;
+    private String details;
+    private LocalDateTime timestamp;
+}
+```
+
+# src\main\java\com\SLAGuard\dto\comments\CommentRequest.java
+
+```java
+package com.SLAGuard.dto.comments;
+
+import lombok.Data;
+
+@Data
+public class CommentRequest {
+    private String content;
+    private boolean isInternal;
+}
+```
+
+# src\main\java\com\SLAGuard\dto\comments\CommentResponse.java
+
+```java
+package com.SLAGuard.dto.comments;
+
+import com.SLAGuard.dto.tickets.UserSummaryResponse;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class CommentResponse {
+    private Long id;
+    private Long ticketId;
+    private UserSummaryResponse author;
+    private String content;
+    private boolean isInternal;
+    private LocalDateTime createdAt;
+}
+```
+
+# src\main\java\com\SLAGuard\dto\dashboard\DashboardStatsResponse.java
+
+```java
+package com.SLAGuard.dto.dashboard;
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.Map;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class DashboardStatsResponse {
+
+    private long totalTickets;
+    private long openTickets;
+    private long closedTickets;
+    private long inProgressTickets;
+    private long escalatedTickets;
+    private long breachedTickets;
+
+    private double slaComplianceRate;
+
+    private Map<String, Long> ticketsByPriority;
+    private Map<String, Long> ticketsByStatus;
+}
+```
+
+# src\main\java\com\SLAGuard\dto\tickets\TicketAssignRequest.java
+
+```java
+package com.SLAGuard.dto.tickets;
+
+import lombok.Data;
+
+@Data
+public class TicketAssignRequest {
+    private Long agentId;
 }
 
 ```
@@ -1886,9 +2150,47 @@ public class UserSummaryResponse {
 ```java
 package com.SLAGuard.entities;
 
-public class AuditLog {
-}
+import com.SLAGuard.auth.entity.User;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
 
+import java.time.LocalDateTime;
+
+@Entity
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+@Table(name = "audit_logs")
+public class AuditLog {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ticket_id", nullable = false)
+    private Ticket ticket;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "performed_by_id", nullable = true) // Can be null if system-triggered (e.g., SLA escalation)
+    private User performedBy;
+
+    @Column(nullable = false)
+    private String action; // e.g., "STATUS_CHANGE", "ASSIGNMENT", "TICKET_CREATED"
+
+    private String oldValue;
+
+    private String newValue;
+
+    private String details;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime timestamp;
+}
 ```
 
 # src\main\java\com\SLAGuard\entities\Comment.java
@@ -1896,19 +2198,44 @@ public class AuditLog {
 ```java
 package com.SLAGuard.entities;
 
+import com.SLAGuard.auth.entity.User;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.CreationTimestamp;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Getter
+@Setter
+@AllArgsConstructor
+@NoArgsConstructor
+@Builder
+@Table(name = "comments")
 public class Comment {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ticket_id", nullable = false)
+    private Ticket ticket;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "author_id", nullable = false)
+    private User author;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
+    private String content;
+
+    @Column(nullable = false)
+    private boolean isInternal = false;
+
+    @CreationTimestamp
+    @Column(updatable = false)
+    private LocalDateTime createdAt;
 }
-
-```
-
-# src\main\java\com\SLAGuard\entities\Role.java
-
-```java
-package com.SLAGuard.entities;
-
-public class Role {
-}
-
 ```
 
 # src\main\java\com\SLAGuard\entities\SlaPolicy.java
@@ -2003,11 +2330,20 @@ public enum Role {
 ```java
 package com.SLAGuard.enums;
 
+import lombok.Getter;
+
+@Getter
 public enum TicketPriority {
-    LOW,
-    MEDIUM,
-    HIGH,
-    URGENT
+    LOW(48),       // 48 hours
+    MEDIUM(24),    // 24 hours
+    HIGH(8),       // 8 hours
+    URGENT(2);     // 2 hours
+
+    private final int slaHours;
+
+    TicketPriority(int slaHours) {
+        this.slaHours = slaHours;
+    }
 }
 
 ```
@@ -2040,7 +2376,7 @@ public enum TicketStatus {
 
 
     static {
-        OPEN.nextAllowedStates = EnumSet.of(IN_PROGRESS, CANCELLED);
+        OPEN.nextAllowedStates = EnumSet.of(IN_PROGRESS, CANCELLED, ESCALATED);
         IN_PROGRESS.nextAllowedStates = EnumSet.of(WAITING_ON_CLIENT, RESOLVED, ESCALATED);
         WAITING_ON_CLIENT.nextAllowedStates = EnumSet.of(IN_PROGRESS, RESOLVED);
         RESOLVED.nextAllowedStates = EnumSet.of(CLOSED, IN_PROGRESS);
@@ -2076,13 +2412,91 @@ public class IllegalStateTransitionException extends RuntimeException {
 
 ```
 
+# src\main\java\com\SLAGuard\mappers\AuditLogMapper.java
+
+```java
+package com.SLAGuard.mappers;
+
+import com.SLAGuard.dto.audit.AuditLogResponse;
+import com.SLAGuard.entities.AuditLog;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+@Component
+@RequiredArgsConstructor
+public class AuditLogMapper {
+
+    private final TicketMapper ticketMapper;
+
+    public AuditLogResponse toResponse(AuditLog log) {
+        if (log == null) return null;
+
+        return AuditLogResponse.builder()
+                .id(log.getId())
+                .ticketId(log.getTicket().getId())
+                .performedBy(log.getPerformedBy() != null ? ticketMapper.toUserSummaryResponse(log.getPerformedBy()) : null)
+                .action(log.getAction())
+                .oldValue(log.getOldValue())
+                .newValue(log.getNewValue())
+                .details(log.getDetails())
+                .timestamp(log.getTimestamp())
+                .build();
+    }
+
+    public List<AuditLogResponse> toResponseList(List<AuditLog> logs) {
+        return logs.stream().map(this::toResponse).toList();
+    }
+}
+```
+
+# src\main\java\com\SLAGuard\mappers\CommentMapper.java
+
+```java
+package com.SLAGuard.mappers;
+
+import com.SLAGuard.dto.comments.CommentResponse;
+import com.SLAGuard.entities.Comment;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+import java.util.List;
+
+@Component
+@RequiredArgsConstructor
+public class CommentMapper {
+
+    private final TicketMapper ticketMapper;
+
+    public CommentResponse toResponse(Comment comment) {
+        if (comment == null) return null;
+
+        return CommentResponse.builder()
+                .id(comment.getId())
+                .ticketId(comment.getTicket().getId())
+                .author(ticketMapper.toUserSummaryResponse(comment.getAuthor()))
+                .content(comment.getContent())
+                .isInternal(comment.isInternal())
+                .createdAt(comment.getCreatedAt())
+                .build();
+    }
+
+    public List<CommentResponse> toResponseList(List<Comment> comments) {
+        return comments.stream().map(this::toResponse).toList();
+    }
+}
+```
+
 # src\main\java\com\SLAGuard\mappers\TicketMapper.java
 
 ```java
 package com.SLAGuard.mappers;
 
+import com.SLAGuard.auth.entity.User;
 import com.SLAGuard.dto.tickets.TicketRequest;
 import com.SLAGuard.dto.tickets.TicketResponse;
+import com.SLAGuard.dto.tickets.UserSummaryResponse;
 import com.SLAGuard.entities.Ticket;
 import org.springframework.stereotype.Component;
 
@@ -2092,6 +2506,8 @@ import java.util.List;
 public class TicketMapper {
 
     public TicketResponse toTicketResponse(Ticket ticket) {
+        if (ticket == null) return null;
+
         TicketResponse response = new TicketResponse();
         response.setId(ticket.getId());
         response.setTitle(ticket.getTitle());
@@ -2099,8 +2515,28 @@ public class TicketMapper {
         response.setPriority(ticket.getPriority());
         response.setCategory(ticket.getCategory());
         response.setStatus(ticket.getStatus());
+        response.setSlaDeadline(ticket.getSlaDueDate());
+        response.setSlaBreached(ticket.isSlaBreached());
+        response.setResolvedAt(ticket.getResolvedAt());
         response.setCreatedAt(ticket.getCreatedAt());
+
+        if (ticket.getCreatedBy() != null) {
+            response.setCreatedBy(toUserSummaryResponse(ticket.getCreatedBy()));
+        }
+        if (ticket.getAssignedTo() != null) {
+            response.setAssignedTo(toUserSummaryResponse(ticket.getAssignedTo()));
+        }
+
         return response;
+    }
+
+    public UserSummaryResponse toUserSummaryResponse(User user) {
+        return UserSummaryResponse.builder()
+                .id(user.getId())
+                .fullName(user.getFirstName() + " " + user.getLastName())
+                .email(user.getEmail())
+                .role(user.getRole())
+                .build();
     }
 
     public List<TicketResponse> toListTicketResponse(List<Ticket> tickets) {
@@ -2118,7 +2554,43 @@ public class TicketMapper {
         return ticket;
     }
 }
+```
 
+# src\main\java\com\SLAGuard\repositories\AuditLogRepository.java
+
+```java
+package com.SLAGuard.repositories;
+
+import com.SLAGuard.entities.AuditLog;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface AuditLogRepository extends JpaRepository<AuditLog, Long> {
+    List<AuditLog> findByTicketIdOrderByTimestampDesc(Long ticketId);
+}
+```
+
+# src\main\java\com\SLAGuard\repositories\CommentRepository.java
+
+```java
+package com.SLAGuard.repositories;
+
+import com.SLAGuard.entities.Comment;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface CommentRepository extends JpaRepository<Comment, Long> {
+
+    List<Comment> findByTicketIdOrderByCreatedAtAsc(Long ticketId);
+
+    List<Comment> findByTicketIdAndIsInternalFalseOrderByCreatedAtAsc(Long ticketId);
+}
 ```
 
 # src\main\java\com\SLAGuard\repositories\TicketRepository.java
@@ -2127,13 +2599,334 @@ public class TicketMapper {
 package com.SLAGuard.repositories;
 
 import com.SLAGuard.entities.Ticket;
+import com.SLAGuard.enums.TicketStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 @Repository
 public interface TicketRepository extends JpaRepository<Ticket, Long> {
+    List<Ticket> findByCreatedById(Long clientId);
+    List<Ticket> findByAssignedToId(Long agentId);
+
+    List<Ticket> findByIsSlaBreachedFalseAndStatusNotInAndSlaDueDateBefore(
+            List<TicketStatus> terminalStatuses,
+            LocalDateTime now
+    );
 }
 
+```
+
+# src\main\java\com\SLAGuard\services\AuditLogService.java
+
+```java
+package com.SLAGuard.services;
+
+import com.SLAGuard.auth.entity.User;
+import com.SLAGuard.dto.audit.AuditLogResponse;
+import com.SLAGuard.entities.AuditLog;
+import com.SLAGuard.entities.Ticket;
+import com.SLAGuard.mappers.AuditLogMapper;
+import com.SLAGuard.repositories.AuditLogRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class AuditLogService {
+
+    private final AuditLogRepository auditLogRepository;
+    private final AuditLogMapper auditLogMapper;
+
+    @Transactional
+    public void logAction(Ticket ticket, User performedBy, String action, String oldValue, String newValue, String details) {
+        AuditLog auditLog = AuditLog.builder()
+                .ticket(ticket)
+                .performedBy(performedBy)
+                .action(action)
+                .oldValue(oldValue)
+                .newValue(newValue)
+                .details(details)
+                .build();
+
+        auditLogRepository.save(auditLog);
+    }
+
+    public List<AuditLogResponse> getLogsForTicket(Long ticketId) {
+        List<AuditLog> logs = auditLogRepository.findByTicketIdOrderByTimestampDesc(ticketId);
+        return auditLogMapper.toResponseList(logs);
+    }
+}
+```
+
+# src\main\java\com\SLAGuard\services\CommentService.java
+
+```java
+package com.SLAGuard.services;
+
+import com.SLAGuard.auth.entity.User;
+import com.SLAGuard.auth.service.AuthService;
+import com.SLAGuard.dto.comments.CommentRequest;
+import com.SLAGuard.dto.comments.CommentResponse;
+import com.SLAGuard.entities.Comment;
+import com.SLAGuard.entities.Ticket;
+import com.SLAGuard.enums.Role;
+import com.SLAGuard.mappers.CommentMapper;
+import com.SLAGuard.repositories.CommentRepository;
+import com.SLAGuard.repositories.TicketRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Objects;
+
+@Service
+@RequiredArgsConstructor
+public class CommentService {
+
+    private final CommentRepository commentRepository;
+    private final TicketRepository ticketRepository;
+    private final CommentMapper commentMapper;
+    private final AuditLogService auditLogService;
+    private final AuthService authService;
+
+    // 1. Fetch comments with role filtering
+    public List<CommentResponse> getCommentsByTicketId(Long ticketId) {
+
+        User currentUser = authService.getUser(Objects.requireNonNull(authService.authenticatedUser().getBody()).getUser().getUsername());
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + ticketId));
+
+        if (currentUser.getRole() == Role.ROLE_CLIENT && !ticket.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new AccessDeniedException("You are not allowed to view comments for this ticket");
+        }
+
+        List<Comment> comments;
+        if (currentUser.getRole() == Role.ROLE_CLIENT) {
+            comments = commentRepository.findByTicketIdAndIsInternalFalseOrderByCreatedAtAsc(ticketId);
+        } else {
+            comments = commentRepository.findByTicketIdOrderByCreatedAtAsc(ticketId);
+        }
+
+        return commentMapper.toResponseList(comments);
+    }
+
+    @Transactional
+    public CommentResponse addComment(Long ticketId, CommentRequest request) {
+
+        User currentUser = authService.getUser(Objects.requireNonNull(authService.authenticatedUser().getBody()).getUser().getUsername());
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + ticketId));
+
+        if (currentUser.getRole() == Role.ROLE_CLIENT && !ticket.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new AccessDeniedException("You cannot comment on someone else's ticket");
+        }
+
+        boolean isInternal = request.isInternal();
+        if (currentUser.getRole() == Role.ROLE_CLIENT) {
+            isInternal = false; // Force to false for clients
+        }
+
+        Comment comment = Comment.builder()
+                .ticket(ticket)
+                .author(currentUser)
+                .content(request.getContent())
+                .isInternal(isInternal)
+                .build();
+
+        Comment savedComment = commentRepository.save(comment);
+
+        String noteType = isInternal ? "INTERNAL_NOTE" : "PUBLIC_COMMENT";
+        auditLogService.logAction(
+                ticket,
+                currentUser,
+                "COMMENT_ADDED",
+                null,
+                noteType,
+                currentUser.getFirstName() + " added a " + (isInternal ? "private internal note" : "public comment")
+        );
+
+        return commentMapper.toResponse(savedComment);
+    }
+}
+```
+
+# src\main\java\com\SLAGuard\services\DashboardService.java
+
+```java
+package com.SLAGuard.services;
+
+import com.SLAGuard.dto.dashboard.DashboardStatsResponse;
+import com.SLAGuard.entities.Ticket;
+import com.SLAGuard.enums.TicketPriority;
+import com.SLAGuard.enums.TicketStatus;
+import com.SLAGuard.repositories.TicketRepository;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@Service
+@RequiredArgsConstructor
+public class DashboardService {
+
+    private final TicketRepository ticketRepository;
+
+    public DashboardStatsResponse getDashboardStats() {
+        List<Ticket> allTickets = ticketRepository.findAll();
+        long totalTickets = allTickets.size();
+
+        if (totalTickets == 0) {
+            return DashboardStatsResponse.builder()
+                    .totalTickets(0)
+                    .openTickets(0)
+                    .closedTickets(0)
+                    .inProgressTickets(0)
+                    .escalatedTickets(0)
+                    .breachedTickets(0)
+                    .slaComplianceRate(100.0)
+                    .ticketsByPriority(Map.of())
+                    .ticketsByStatus(Map.of())
+                    .build();
+        }
+
+        // 1. Grouping by Status
+        Map<String, Long> ticketsByStatus = new HashMap<>();
+        for (TicketStatus status : TicketStatus.values()) {
+            ticketsByStatus.put(status.name(), 0L);
+        }
+        for (Ticket t : allTickets) {
+            ticketsByStatus.put(t.getStatus().name(), ticketsByStatus.get(t.getStatus().name()) + 1);
+        }
+
+        // 2. Grouping by Priority
+        Map<String, Long> ticketsByPriority = new HashMap<>();
+        for (TicketPriority priority : TicketPriority.values()) {
+            ticketsByPriority.put(priority.name(), 0L);
+        }
+        for (Ticket t : allTickets) {
+            ticketsByPriority.put(t.getPriority().name(), ticketsByPriority.get(t.getPriority().name()) + 1);
+        }
+
+        // 3. Counts
+        long openTickets = ticketsByStatus.getOrDefault(TicketStatus.OPEN.name(), 0L);
+        long closedTickets = ticketsByStatus.getOrDefault(TicketStatus.CLOSED.name(), 0L)
+                + ticketsByStatus.getOrDefault(TicketStatus.RESOLVED.name(), 0L);
+        long inProgressTickets = ticketsByStatus.getOrDefault(TicketStatus.IN_PROGRESS.name(), 0L);
+        long escalatedTickets = ticketsByStatus.getOrDefault(TicketStatus.ESCALATED.name(), 0L);
+
+        long breachedCount = allTickets.stream().filter(Ticket::isSlaBreached).count();
+
+        // 4. SLA Compliance Formula: (Total - Breached) / Total * 100
+        double complianceRate = ((double) (totalTickets - breachedCount) / totalTickets) * 100.0;
+        complianceRate = Math.round(complianceRate * 100.0) / 100.0; // Round to 2 decimal places
+
+        return DashboardStatsResponse.builder()
+                .totalTickets(totalTickets)
+                .openTickets(openTickets)
+                .closedTickets(closedTickets)
+                .inProgressTickets(inProgressTickets)
+                .escalatedTickets(escalatedTickets)
+                .breachedTickets(breachedCount)
+                .slaComplianceRate(complianceRate)
+                .ticketsByPriority(ticketsByPriority)
+                .ticketsByStatus(ticketsByStatus)
+                .build();
+    }
+}
+```
+
+# src\main\java\com\SLAGuard\services\SlaEscalationScheduler.java
+
+```java
+package com.SLAGuard.services;
+
+import com.SLAGuard.auth.entity.User;
+import com.SLAGuard.auth.repository.UserRepository;
+import com.SLAGuard.entities.Ticket;
+import com.SLAGuard.enums.Role;
+import com.SLAGuard.enums.TicketStatus;
+import com.SLAGuard.repositories.TicketRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class SlaEscalationScheduler {
+
+    private final TicketRepository ticketRepository;
+    private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
+
+    // Runs every 60 seconds (fixedRate = 60000 ms)
+    @Scheduled(fixedRate = 60000)
+    @Transactional
+    public void monitorAndEscalateTickets() {
+        LocalDateTime now = LocalDateTime.now();
+
+        // 1. Terminal statuses to ignore (Resolved and Closed tickets don't breach SLA)
+        List<TicketStatus> terminalStatuses = List.of(TicketStatus.RESOLVED, TicketStatus.CLOSED, TicketStatus.CANCELLED);
+
+        // 2. Query expired, active tickets
+        List<Ticket> breachedTickets = ticketRepository
+                .findByIsSlaBreachedFalseAndStatusNotInAndSlaDueDateBefore(terminalStatuses, now);
+
+        if (breachedTickets.isEmpty()) {
+            return;
+        }
+
+        log.warn("SLA Engine: Found {} ticket(s) breaching SLA deadline!", breachedTickets.size());
+
+        // 3. Find default Admin for escalation fallback
+        User defaultAdmin = userRepository.findFirstByRole(Role.ROLE_ADMIN).orElse(null);
+
+        // 4. Process each breached ticket
+        for (Ticket ticket : breachedTickets) {
+            TicketStatus oldStatus = ticket.getStatus();
+
+            ticket.setSlaBreached(true);
+            ticket.setStatus(TicketStatus.ESCALATED);
+
+            // Reassign to Admin if unassigned or escalation rule requires
+            if (defaultAdmin != null) {
+                ticket.setAssignedTo(defaultAdmin);
+            }
+
+            ticketRepository.save(ticket);
+
+            // 5. System Audit Log (performedBy is null because this is an automated system event)
+            auditLogService.logAction(
+                    ticket,
+                    null,
+                    "SLA_BREACH_ESCALATED",
+                    oldStatus.name(),
+                    TicketStatus.ESCALATED.name(),
+                    "SLA Breached! Deadline was: " + ticket.getSlaDueDate() + ". Automatically escalated to Admin."
+            );
+
+            log.info("Ticket #{} escalated due to SLA breach.", ticket.getId());
+        }
+    }
+}
 ```
 
 # src\main\java\com\SLAGuard\services\TicketService.java
@@ -2142,21 +2935,26 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
 package com.SLAGuard.services;
 
 import com.SLAGuard.auth.entity.User;
+import com.SLAGuard.auth.exception.UserNotFoundException;
+import com.SLAGuard.auth.mapper.AuthMapper;
 import com.SLAGuard.auth.repository.UserRepository;
 import com.SLAGuard.auth.service.AuthService;
 import com.SLAGuard.dto.tickets.TicketRequest;
 import com.SLAGuard.dto.tickets.TicketResponse;
 import com.SLAGuard.entities.Ticket;
+import com.SLAGuard.enums.Role;
 import com.SLAGuard.enums.TicketStatus;
 import com.SLAGuard.exceptions.IllegalStateTransitionException;
 import com.SLAGuard.mappers.TicketMapper;
 import com.SLAGuard.repositories.TicketRepository;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -2167,69 +2965,115 @@ public class TicketService {
     private final TicketMapper ticketMapper;
     private final AuthService authService;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
-    public List<TicketResponse> getAllTicketsByCustomerId(Long clientId) {
-        List<Ticket> tickets = ticketRepository.findAll().stream()
-                .filter(ticket -> ticket.getCreatedBy().getId().equals(clientId))
-                .toList();
-
+    public List<TicketResponse> getAllTickets() {
+        List<Ticket> tickets;
+        User currentUser = authService.getUser(Objects.requireNonNull(authService.authenticatedUser().getBody()).getUser().getUsername());
+        if (currentUser.getRole() == Role.ROLE_CLIENT) {
+            tickets = ticketRepository.findByCreatedById(currentUser.getId());
+        } else {
+            tickets = ticketRepository.findAll();
+        }
         return ticketMapper.toListTicketResponse(tickets);
-
     }
+
 
     public TicketResponse getTicketById(Long ticketId) {
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + ticketId));
 
+        User currentUser = authService.getUser(Objects.requireNonNull(authService.authenticatedUser().getBody()).getUser().getUsername());
+
+        // RBAC: Client cannot view another user's ticket
+        if (currentUser.getRole() == Role.ROLE_CLIENT && !ticket.getCreatedBy().getId().equals(currentUser.getId())) {
+            throw new AccessDeniedException("You are not allowed to view this ticket");
+        }
+
         return ticketMapper.toTicketResponse(ticket);
     }
 
     public TicketResponse createTicket(TicketRequest ticketRequest) {
+        User currentUser = authService.getUser(Objects.requireNonNull(authService.authenticatedUser().getBody()).getUser().getUsername());
         Ticket savedTicket = ticketMapper.toTicket(ticketRequest);
         savedTicket.setStatus(TicketStatus.OPEN);
-        savedTicket.setCreatedBy(userRepository.findById(ticketRequest.getCreatedById())
-                .orElseThrow(() -> new RuntimeException("User not found with id: " + ticketRequest.getCreatedById())));
+        savedTicket.setCreatedBy(currentUser);
+
+        LocalDateTime deadline = LocalDateTime.now().plusHours(savedTicket.getPriority().getSlaHours());
+        savedTicket.setSlaDueDate(deadline);
+        savedTicket.setSlaBreached(false);
 
         savedTicket = ticketRepository.save(savedTicket);
-
+        auditLogService.logAction(savedTicket, currentUser, "CREATE_TICKET", null, savedTicket.getTitle(), "Ticket created");
         return ticketMapper.toTicketResponse(savedTicket);
     }
 
     @Transactional
     public TicketResponse updateTicketStatus(Long ticketId, TicketStatus newStatus) {
+        User currentUser = authService.getUser(Objects.requireNonNull(authService.authenticatedUser().getBody()).getUser().getUsername());
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new RuntimeException("Ticket not found"));
 
         TicketStatus currentStatus = ticket.getStatus();
 
-        // 1. VALIDATION: Check if transition is legal
         if (!currentStatus.canTransitionTo(newStatus)) {
             throw new IllegalStateTransitionException(currentStatus, newStatus);
         }
 
-        // 2. SIDE EFFECTS: Execute logic based on the new state
         if (newStatus == TicketStatus.RESOLVED) {
             ticket.setResolvedAt(LocalDateTime.now());
         } else if (newStatus == TicketStatus.IN_PROGRESS && ticket.getAssignedTo() == null) {
-            // Auto-assign to the agent moving it to IN_PROGRESS if unassigned
-            User authenticatedUser = authService.getUser(authService.authenticatedUser().getBody().getUser().getUsername());
-            ticket.setAssignedTo(authenticatedUser);
+            ticket.setAssignedTo(currentUser);
         }
 
-        // 3. APPLY STATE CHANGE
         ticket.setStatus(newStatus);
         Ticket updatedTicket = ticketRepository.save(ticket);
 
-//        // 4. AUDIT LOG: Record transition for history/timeline
-//        auditLogService.logAction(
-//                ticket,
-//                currentUser,
-//                "STATUS_CHANGE",
-//                currentStatus.name(),
-//                newStatus.name()
-//        );
+        auditLogService.logAction(updatedTicket, currentUser, "UPDATE_TICKET", currentStatus.name(), newStatus.name(), updatedTicket.getTitle());
 
         return ticketMapper.toTicketResponse(updatedTicket);
+    }
+
+
+    @Transactional
+    public TicketResponse assignTicket(Long ticketId, Long agentId) {
+
+        User currentUser = authService.getUser(Objects.requireNonNull(authService.authenticatedUser().getBody()).getUser().getUsername());
+
+        Ticket ticket = ticketRepository.findById(ticketId)
+                .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + ticketId));
+
+        User agent = userRepository.findById(agentId)
+                .orElseThrow(() -> new UserNotFoundException("Agent not found with id: " + agentId));
+
+        if (agent.getRole() == Role.ROLE_CLIENT) {
+            throw new IllegalArgumentException("Cannot assign a ticket to a CLIENT");
+        }
+
+        String oldAgentName = ticket.getAssignedTo() != null
+                ? ticket.getAssignedTo().getFirstName() + " " + ticket.getAssignedTo().getLastName()
+                : "Unassigned";
+
+        String newAgentName = agent.getFirstName() + " " + agent.getLastName();
+
+        ticket.setAssignedTo(agent);
+        if (ticket.getStatus() == TicketStatus.OPEN) {
+            ticket.setStatus(TicketStatus.IN_PROGRESS);
+        }
+
+        Ticket savedTicket = ticketRepository.save(ticket);
+
+        // AUDIT LOG: Assignment
+        auditLogService.logAction(
+                savedTicket,
+                currentUser,
+                "ASSIGNMENT",
+                oldAgentName,
+                newAgentName,
+                "Ticket assigned to " + newAgentName + " by " + currentUser.getFirstName()
+        );
+
+        return ticketMapper.toTicketResponse(savedTicket);
     }
 
     public Set<TicketStatus> getAllowedNextStatuses(Long ticketId) {
@@ -2238,10 +3082,10 @@ public class TicketService {
         return ticket.getStatus().getNextAllowedStates();
     }
 
+    // 6. Delete Ticket (Admins only)
     public void deleteTicket(Long ticketId) {
         Ticket ticket = ticketRepository.findById(ticketId)
                 .orElseThrow(() -> new RuntimeException("Ticket not found with id: " + ticketId));
-
         ticketRepository.delete(ticket);
     }
 
@@ -2257,8 +3101,10 @@ package com.SLAGuard;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
+@EnableScheduling
 public class SlaGuardApplication {
 
 	public static void main(String[] args) {
@@ -2300,6 +3146,12 @@ jwt:
 
 server:
   port: 9090
+
+logging:
+  level:
+    org.springframework.security: DEBUG
+    org.springframework.web: DEBUG
+    com.SLAGuard: DEBUG
 ```
 
 # src\test\java\com\SLAGuard\SlaGuardApplicationTests.java

@@ -1,6 +1,5 @@
-version: '3.8'
-
 services:
+  # 1. PostgreSQL Database
   postgres:
     image: postgres:16-alpine
     container_name: postgres_db
@@ -8,11 +7,46 @@ services:
     environment:
       POSTGRES_USER: medmsf
       POSTGRES_PASSWORD: medmsf7810
-      POSTGRES_DB: sla-guards
+      POSTGRES_DB: sla-guard
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U medmsf -d sla-guard"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Spring Boot Backend Service
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: sla_guard_backend
+    restart: always
+    ports:
+      - "9090:9090"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sla-guard
+      SPRING_DATASOURCE_USERNAME: medmsf
+      SPRING_DATASOURCE_PASSWORD: medmsf7810
+      JWT_SECRET: 75PsrxxBG7XwgY0Rg6M6LVUyyg7jIYw++YqlYItp3h0EFj1kbazUyi/PY5eXk/pR
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # 3. React Vite Frontend Service
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: sla_guard_frontend
+    restart: always
+    ports:
+      - "5173:80"
+    depends_on:
+      - backend
 
 volumes:
   postgres_data:

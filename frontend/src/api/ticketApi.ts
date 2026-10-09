@@ -7,6 +7,11 @@ export const ticketApi = {
     return response.data;
   },
 
+  getAllEscalatedTickets: async (): Promise<Ticket[]> => {
+    const response = await axiosClient.get<Ticket[]>('/tickets/escalated');
+    return response.data;
+  },
+
   getTicketById: async (id: number): Promise<Ticket> => {
     const response = await axiosClient.get<Ticket>(`/tickets/${id}`);
     return response.data;

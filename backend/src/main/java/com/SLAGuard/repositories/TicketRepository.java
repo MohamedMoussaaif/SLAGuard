@@ -17,4 +17,6 @@ public interface TicketRepository extends JpaRepository<Ticket, Long> {
             List<TicketStatus> terminalStatuses,
             LocalDateTime now
     );
+
+    List<Ticket> findByStatus(TicketStatus status);
 }

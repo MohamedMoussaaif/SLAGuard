@@ -1,6 +1,7 @@
 package com.SLAGuard.entities;
 
 import com.SLAGuard.auth.entity.User;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.CreationTimestamp;
@@ -31,8 +32,9 @@ public class Comment {
     @Column(nullable = false, columnDefinition = "TEXT")
     private String content;
 
-    @Column(nullable = false)
-    private boolean isInternal = false;
+    @Column(name = "is_internal", nullable = false)
+    @JsonProperty("isInternal")
+    private boolean isInternal;
 
     @CreationTimestamp
     @Column(updatable = false)
