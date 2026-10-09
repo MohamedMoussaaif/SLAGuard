@@ -3,9 +3,9 @@ spring:
     name: SLAGuard
 
   datasource:
-    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/sla-guard}
-    username: ${SPRING_DATASOURCE_USERNAME:medmsf}
-    password: ${SPRING_DATASOURCE_PASSWORD:medmsf7810}
+    url: ${SPRING_DATASOURCE_URL}
+    username: ${SPRING_DATASOURCE_USERNAME}
+    password: ${SPRING_DATASOURCE_PASSWORD}
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -21,7 +21,7 @@ spring:
 
 
 jwt:
-  secret: ${JWT_SECRET:75PsrxxBG7XwgY0Rg6M6LVUyyg7jIYw++YqlYItp3h0EFj1kbazUyi/PY5eXk/pR}
+  secret: ${JWT_SECRET}
   expiration: 86400000   # 24 hours, in milliseconds
 
 server:

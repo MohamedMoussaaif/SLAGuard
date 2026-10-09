@@ -5,9 +5,9 @@ services:
     container_name: postgres_db
     restart: always
     environment:
-      POSTGRES_USER: medmsf
-      POSTGRES_PASSWORD: medmsf7810
-      POSTGRES_DB: sla-guard
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
@@ -28,10 +28,10 @@ services:
     ports:
       - "9090:9090"
     environment:
-      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/sla-guard
-      SPRING_DATASOURCE_USERNAME: medmsf
-      SPRING_DATASOURCE_PASSWORD: medmsf7810
-      JWT_SECRET: 75PsrxxBG7XwgY0Rg6M6LVUyyg7jIYw++YqlYItp3h0EFj1kbazUyi/PY5eXk/pR
+      SPRING_DATASOURCE_URL: ${SPRING_DATASOURCE_URL}
+      SPRING_DATASOURCE_USERNAME: ${SPRING_DATASOURCE_USERNAME}
+      SPRING_DATASOURCE_PASSWORD: ${SPRING_DATASOURCE_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET}
     depends_on:
       postgres:
         condition: service_healthy
